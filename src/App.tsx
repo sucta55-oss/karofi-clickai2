@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   Droplets, 
@@ -50,6 +50,7 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [step, setStep] = useState(1); // 1: Info, 2: Payment
   const [loading, setLoading] = useState(false);
+  const [orderId, setOrderId] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -75,14 +76,25 @@ export default function App() {
     setIsCheckoutOpen(true);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({ ...prev, [id]: value }));
   };
 
+  const generateOrderId = () => {
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
+    return `KA${randomNum}`;
+  };
+
+  const handleNextStep = () => {
+    const newOrderId = generateOrderId();
+    setOrderId(newOrderId);
+    setStep(2);
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
-    const scriptUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL;
+    const scriptUrl = (import.meta as any).env.VITE_GOOGLE_SCRIPT_URL;
 
     if (!scriptUrl) {
       console.error("Vui lòng cấu hình VITE_GOOGLE_SCRIPT_URL trong Secrets.");
@@ -93,18 +105,17 @@ export default function App() {
     }
 
     try {
-      // Gửi dữ liệu qua Google Apps Script
+      // Gửi dữ liệu qua Google Apps Script bao gồm cả orderId
       await fetch(scriptUrl, {
         method: "POST",
-        mode: "no-cors", // Google Script yêu cầu no-cors nếu không cấu hình CORS phức tạp
+        mode: "no-cors",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, orderId }),
       });
 
-      // Giả lập thành công vì no-cors không trả về body
-      alert("Đặt hàng thành công! Chúng tôi sẽ liên hệ với bạn sớm nhất.");
+      alert("Đặt hàng thành công! Vui lòng hoàn tất thanh toán qua mã QR.");
       setIsCheckoutOpen(false);
       setFormData({ name: "", email: "", phone: "", address: "" });
     } catch (error) {
@@ -115,6 +126,8 @@ export default function App() {
     }
   };
 
+  const qrUrl = `https://qr.sepay.vn/img?acc=106886477148&bank=VietinBank&amount=7000&des=SEVQR%20${orderId}&template=compact`;
+
   return (
     <div className="min-h-screen bg-white font-sans text-slate-900 selection:bg-blue-100 selection:text-blue-900">
       {/* Checkout Dialog */}
@@ -123,12 +136,12 @@ export default function App() {
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-blue-900 flex items-center gap-2">
               <ShoppingBag className="h-6 w-6" />
-              {step === 1 ? "Thông tin đặt hàng" : "Thanh toán đơn hàng"}
+              {step === 1 ? "Thông tin đặt hàng" : "Quét mã thanh toán"}
             </DialogTitle>
             <DialogDescription>
               {step === 1 
                 ? "Vui lòng nhập thông tin để chúng tôi giao hàng nhanh nhất." 
-                : "Hoàn tất thanh toán để sở hữu Karofi Platinum S6."}
+                : `Mã đơn hàng: ${orderId}. Vui lòng quét mã để thanh toán 7.000 VNĐ.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -184,7 +197,7 @@ export default function App() {
                   />
                 </div>
                 <Button 
-                  onClick={() => setStep(2)} 
+                  onClick={handleNextStep} 
                   disabled={!formData.name || !formData.phone || !formData.address}
                   className="w-full h-14 rounded-xl bg-blue-600 text-lg font-bold hover:bg-blue-700 disabled:opacity-50"
                 >
@@ -199,29 +212,25 @@ export default function App() {
                 exit={{ opacity: 0, x: -20 }}
                 className="grid gap-6 py-4"
               >
-                <div className="rounded-2xl bg-slate-50 p-6 border border-slate-100">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-slate-500">Sản phẩm:</span>
-                    <span className="font-bold">Karofi Platinum S6</span>
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className="relative overflow-hidden rounded-2xl border-4 border-blue-600 p-2 bg-white shadow-lg">
+                    <img 
+                      src={qrUrl} 
+                      alt="Payment QR Code" 
+                      className="h-64 w-64 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
-                  <Separator className="my-4" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-900 font-medium">Tổng thanh toán:</span>
-                    <span className="text-2xl font-black text-blue-600">1.000 VNĐ</span>
+                  <div className="text-center">
+                    <p className="text-sm text-slate-500">Nội dung chuyển khoản:</p>
+                    <p className="text-xl font-black text-blue-600 tracking-wider">{orderId}</p>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <Label>Phương thức thanh toán</Label>
-                  <div className="grid gap-3">
-                    <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-blue-600 bg-blue-50">
-                      <CreditCard className="text-blue-600" />
-                      <span className="font-bold text-blue-900">Thanh toán Online</span>
-                    </div>
-                    <div className="flex items-center gap-3 p-4 rounded-xl border border-slate-200 opacity-50">
-                      <div className="h-6 w-6 rounded-full border border-slate-300" />
-                      <span className="font-medium text-slate-500">Thanh toán khi nhận hàng (COD)</span>
-                    </div>
+                <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-900 font-medium">Tổng thanh toán:</span>
+                    <span className="text-xl font-black text-blue-600">7.000 VNĐ</span>
                   </div>
                 </div>
 
@@ -230,7 +239,7 @@ export default function App() {
                   disabled={loading}
                   className="w-full h-14 rounded-xl bg-blue-600 text-lg font-bold hover:bg-blue-700 shadow-lg shadow-blue-200"
                 >
-                  {loading ? "Đang xử lý..." : "Xác nhận thanh toán"}
+                  {loading ? "Đang xử lý..." : "Tôi đã thanh toán"}
                 </Button>
                 <button 
                   onClick={() => setStep(1)}

@@ -8,15 +8,19 @@ function doPost(e) {
     // Lấy dữ liệu từ request
     var data = JSON.parse(e.postData.contents);
     
-    // Tạo mảng dữ liệu theo thứ tự các cột A-F
+    // Tạo mảng dữ liệu theo thứ tự các cột:
     // A: Thời gian, B: Họ và tên, C: Số điện thoại, D: Email, E: Địa chỉ giao hàng, F: Thanh toán
+    // G: (Trống), H: (Trống), I: Mã đơn hàng
     var row = [
       new Date(),       // A: Thời gian
       data.name,        // B: Họ và tên
       data.phone,       // C: Số điện thoại
       data.email,       // D: Email
       data.address,     // E: Địa chỉ giao hàng
-      "UNPAID"          // F: Thanh toán (mặc định)
+      "UNPAID",         // F: Thanh toán (mặc định)
+      "",               // G: Trống
+      "",               // H: Trống
+      data.orderId      // I: Mã đơn hàng (KA...)
     ];
     
     // Thêm dòng mới vào sheet
@@ -33,7 +37,6 @@ function doPost(e) {
   }
 }
 
-// Hàm test để kiểm tra quyền truy cập (không bắt buộc)
 function doGet() {
-  return ContentService.createTextOutput("Google Apps Script for Karofi Landing Page is running!");
+  return ContentService.createTextOutput("Google Apps Script for Karofi Landing Page (v2) is running!");
 }
