@@ -73,6 +73,8 @@ export default function App() {
 
   const handleOpenCheckout = () => {
     setStep(1);
+    // Tạo mã đơn hàng ngay khi mở form để giữ cố định cho phiên này
+    setOrderId(generateOrderId());
     setIsCheckoutOpen(true);
   };
 
@@ -86,9 +88,33 @@ export default function App() {
     return `KA${randomNum}`;
   };
 
-  const handleNextStep = () => {
-    const newOrderId = generateOrderId();
-    setOrderId(newOrderId);
+  const handleNextStep = async () => {
+    setLoading(true);
+    const scriptUrl = (import.meta as any).env.VITE_GOOGLE_SCRIPT_URL;
+    
+    // Gửi thông tin lên Sheet ngay khi nhấn "Tiếp tục" để tạo dòng UNPAID
+    if (scriptUrl) {
+      try {
+        const params = new URLSearchParams();
+        params.append("action", "create");
+        params.append("name", formData.name);
+        params.append("email", formData.email);
+        params.append("phone", formData.phone);
+        params.append("address", formData.address);
+        params.append("orderId", orderId);
+
+        await fetch(scriptUrl, {
+          method: "POST",
+          mode: "no-cors",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: params.toString(),
+        });
+      } catch (error) {
+        console.error("Lỗi khi tạo đơn hàng:", error);
+      }
+    }
+    
+    setLoading(false);
     setStep(2);
   };
 
@@ -104,23 +130,36 @@ export default function App() {
       return;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     try {
-      // Gửi dữ liệu qua Google Apps Script bao gồm cả orderId
+      const formDataObj = new URLSearchParams();
+      formDataObj.append("action", "update");
+      formDataObj.append("orderId", orderId);
+
       await fetch(scriptUrl, {
         method: "POST",
         mode: "no-cors",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ...formData, orderId }),
+        cache: "no-cache",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formDataObj.toString(),
+        signal: controller.signal
       });
 
-      alert("Đặt hàng thành công! Vui lòng hoàn tất thanh toán qua mã QR.");
+      clearTimeout(timeoutId);
+      alert("Thanh toán thành công! Trạng thái đơn hàng " + orderId + " đã được cập nhật thành PAID.");
       setIsCheckoutOpen(false);
       setFormData({ name: "", email: "", phone: "", address: "" });
-    } catch (error) {
-      console.error("Lỗi khi gửi dữ liệu:", error);
-      alert("Có lỗi xảy ra khi gửi đơn hàng. Vui lòng liên hệ hotline 1900 6418.");
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        alert("Xử lý hơi lâu, nhưng đơn hàng của bạn đang được cập nhật. Vui lòng kiểm tra lại Google Sheet.");
+      } else {
+        console.error("Lỗi khi cập nhật thanh toán:", error);
+        alert("Có lỗi xảy ra. Vui lòng liên hệ hotline 1900 6418.");
+      }
+      setIsCheckoutOpen(false);
     } finally {
       setLoading(false);
     }
